@@ -1,25 +1,21 @@
 import re
-import numpy as np
 import pandas as pd
 import seaborn as sns
-import xgboost as xgb
+import copy
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score
-import tensorflow as tf
-
 from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import L2
 from tensorflow.keras import Sequential
 import matplotlib.pyplot as plt
+from const import Paths
 
-from const import Paths, Const, Str
 
-
-def data_acqusiotion_and_understanding():
+def data_acquisition_and_understanding(data_file_path: str = None):
     """
+    :param data_file_path = Paths.dataset_file if None. can be used to work on different dataset.
     These descriptions provide details about various attributes present in the dataset:
      ip.src: Source IP address
      tcp.srcport: Source port number for TCP (Transmission Control Protocol).
@@ -47,7 +43,8 @@ def data_acqusiotion_and_understanding():
     # Data Exploration & Cleaning:
     """
     print(f'*Acuire Data from dataset file.')
-    return pd.read_csv(Paths.dataset_file)
+    data_file_path = data_file_path if data_file_path is not None else Paths.dataset_file
+    return pd.read_csv(data_file_path)
 
 
 def show_dataset_distribution(dataset):
@@ -90,7 +87,7 @@ def get_features(data_set):
 
 def exploratory_data_analysis(data_set):
     def show_benign_vs_ddos_overtime(data_set):
-        print(f'**Show dataset benign VS malicious.')
+        print(f'**Show dataset benign VS malicious over time.')
         connection_by_time = data_set[data_set['Label'] != 'Benign'].groupby(['frame.time']).size()
         connection_by_time_b = data_set[data_set['Label'] == 'Benign'].groupby(['frame.time']).size()
         plt.title('Benign & non-Benign DDoS Connections Over Time')
@@ -106,6 +103,7 @@ def exploratory_data_analysis(data_set):
         plt.clf()
 
     def show_ip_req_by_time_distribution(data_set):
+        print(f'**Show dataset IP req by time.')
         connection_by_time_different_ip_src = data_set[data_set['Label'] != 'Benign'].groupby(
             ['ip.src', 'frame.time']).size()
         connection_by_time_different_ip_src.unstack(level=0).plot(kind='bar', stacked=True)
@@ -119,6 +117,7 @@ def exploratory_data_analysis(data_set):
         plt.clf()
 
     def show_bytes_over_time(data_set):
+        print(f'**Show dataset bytes transport over time.')
         data_set[data_set['Label'] == 'Benign'].groupby(['frame.time', 'Packets']).size()
         non_benign_data = data_set[data_set['Label'] != 'Benign']
         non_benign_bytes_by_time = non_benign_data.groupby(['frame.time', 'Bytes']).size().reset_index(name='count')
@@ -140,6 +139,7 @@ def exploratory_data_analysis(data_set):
         plt.clf()
 
     def show_avg_packets_over_time(data_set):
+        print(f'**Show dataset AVG packets over time.')
         benign = data_set[data_set['Label'] == "Bengin"].Packets
         ddos_ack = data_set[data_set['Label'] == "DDoS-ACK"].Packets
         ddos_psh_ack = data_set[data_set['Label'] == "DDoS-PSH-ACK"].Packets
@@ -178,6 +178,7 @@ def exploratory_data_analysis(data_set):
         plt.clf()
 
     def show_packets_over_time(data_set):
+        print(f'**Show dataset packets over time.')
         # Filter non-benign and benign data
         non_benign_data = data_set[data_set['Label'] != 'Benign']
         benign_data = data_set[data_set['Label'] == 'Benign']
@@ -196,6 +197,7 @@ def exploratory_data_analysis(data_set):
         plt.clf()
 
     def show_frequency_labels_over_time(data_set):
+        print(f'**Show dataset frequency labels over time.')
         label_counts = data_set.groupby(['frame.time', 'Label']).size().unstack(fill_value=0)
         label_counts['Benign'].plot(kind='line', figsize=(10, 6))
         label_counts['DDoS-PSH-ACK'].plot(kind='line', figsize=(10, 6))
@@ -210,7 +212,7 @@ def exploratory_data_analysis(data_set):
         plt.clf()
 
     def show_corelation_analisys(data_set):
-        print(f'Showing correlation analisys. this operation takes some time.')
+        print(f'**Showing correlation analysis and heatmaps. this operation takes some time.')
         sns.pairplot(data_set, hue='Label', vars=['frame.time', 'Packets', 'Tx Packets'])
         numerical_features = [feature for feature in data_set.columns if data_set[feature].dtypes != 'O']
         categorical_features = [feature for feature in data_set.columns if data_set[feature].dtypes == 'O']
@@ -218,9 +220,6 @@ def exploratory_data_analysis(data_set):
         sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5)
         plt.title('Correlation Heatmap of Numerical Features')
         plt.show()
-
-    # def show_bytes_over_time(data_set):
-    # def show_bytes_over_time(data_set):
 
     show_benign_vs_ddos_overtime(data_set=data_set)
     show_ip_req_by_time_distribution(data_set=data_set)
@@ -269,14 +268,14 @@ def normalize_data(dataset, numerical_features):
     return dataset
 
 
-def train_model(dataset):
+def train_model(dataset, main_test_size: float = 0.1, secondary_test_size: float = 0.125, epochs: int = 20):
+    print(f'*Training Model.')
     y = dataset['label_encoded']
     X = dataset.drop(columns=['label_encoded', 'Label_Benign', 'Label_DDoS-ACK', 'Label_DDoS-PSH-ACK'])
-    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
-    X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=0.125, random_state=42)
+    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=main_test_size, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=secondary_test_size, random_state=42)
 
     """The distribution of classes between the two train and test sets is even.
-
     # Defining the deep learning model:
     """
 
@@ -289,37 +288,22 @@ def train_model(dataset):
     model.compile(optimizer=Adam(learning_rate=1e-3), loss=BinaryCrossentropy(), metrics=['accuracy'])
     model.summary()
 
-    """## Fitting the model:"""
-
+    print(f'*Fitting the model.')
     history_log = model.fit(
         X_train,
         y_train,
         batch_size=1024,
-        epochs=100, verbose=2,
+        epochs=epochs, verbose=2,
         callbacks=None,
         shuffle=True,
         validation_data=(X_val, y_val),
         class_weight=None,
         sample_weight=None,
         initial_epoch=0)
-    return model, history_log
+    return X_test, y_test, model, history_log
 
 
-def main():
-    """Problem definition
-    Distributed Denial of Service: it's a cybersecurity menace which disrupts online services by sending an overwhelming amount of network traffic. These attacks are manually started with botnets that flood the target network. These attacks could have either of the following characteristics:
-     The botnet sends a massive number of requests to the hosting servers.
-     The botnet sends a high volume of random data packets, thus incapacitating the network.
-     our goal is to detect the attack with certainty > 0.9"""
-    ddos_data = data_acqusiotion_and_understanding()
-    # show_dataset_distribution(dataset=ddos_data)
-    data_preprocessing(dataset=ddos_data)
-    # exploratory_data_analysis(data_set=ddos_data)
-    binary_features, numerical_features, categorical_features = get_features(data_set=ddos_data)
-    ddos_data = normalize_data(dataset=ddos_data, numerical_features=numerical_features)
-    model, history_log = train_model(dataset=ddos_data)
-    exit()
-
+def plot_model_results(history_log):
     """## Plotting the loss by epochs:"""
     loss = history_log.history['loss']
     val_loss = history_log.history['val_loss']
@@ -346,10 +330,34 @@ def main():
     plt.show()
     plt.clf()
 
-    """## Model evaluation for test set:"""
 
-    loss, accuracy = model.evaluate(X_test, y_test)
-    print('Accuracy of Deep neural Network on unseen data : %.2f' % (accuracy * 100))
+def main():
+    """Problem definition
+    Distributed Denial of Service: it's a cybersecurity menace which disrupts online services by sending an overwhelming amount of network traffic. These attacks are manually started with botnets that flood the target network. These attacks could have either of the following characteristics:
+     The botnet sends a massive number of requests to the hosting servers.
+     The botnet sends a high volume of random data packets, thus incapacitating the network.
+     our goal is to detect the attack with certainty > 0.6"""
+
+    ddos_data = data_acquisition_and_understanding(data_file_path=Paths.dataset_file)
+    show_dataset_distribution(dataset=ddos_data)
+    data_preprocessing(dataset=ddos_data)
+    exploratory_data_analysis(data_set=ddos_data)
+    binary_features, numerical_features, categorical_features = get_features(data_set=ddos_data)
+    ddos_data = normalize_data(dataset=ddos_data, numerical_features=numerical_features)
+
+    # pre maximizing
+    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.1, secondary_test_size=0.125, epochs=10)
+    plot_model_results(history_log=history_log)
+    loss_pre, accuracy_pre = model.evaluate(X_test, y_test)
+    print('Accuracy of Deep neural Network on unseen data : %.2f' % (accuracy_pre * 100))
+
+    # post_maximizing training and learning time and computing.
+    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.7, secondary_test_size=0.125, epochs=100)
+    plot_model_results(history_log=history_log)
+    loss_post, accuracy_post = model.evaluate(X_test, y_test)
+    print('Accuracy of Deep neural Network on unseen data : %.2f' % (accuracy_post * 100))
+
+    print(f'model improvement: {accuracy_post-accuracy_pre}')
 
 
 if __name__ == '__main__':
