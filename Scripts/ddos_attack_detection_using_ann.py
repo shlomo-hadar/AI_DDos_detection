@@ -87,6 +87,7 @@ def get_features(data_set):
     categorical_features = [feature for feature in data_set.columns if data_set[feature].dtypes == 'O']
     return binary_features, numerical_features, categorical_features
 
+
 def exploratory_data_analysis(data_set):
     def show_benign_vs_ddos_overtime(data_set):
         print(f'**Show dataset benign VS malicious.')
@@ -268,39 +269,11 @@ def normalize_data(dataset, numerical_features):
     return dataset
 
 
-def main():
-    """Problem definition
-    Distributed Denial of Service: it's a cybersecurity menace which disrupts online services by sending an overwhelming amount of network traffic. These attacks are manually started with botnets that flood the target network. These attacks could have either of the following characteristics:
-     The botnet sends a massive number of requests to the hosting servers.
-     The botnet sends a high volume of random data packets, thus incapacitating the network.
-     our goal is to detect the attack with certainty > 0.9"""
-    ddos_data = data_acqusiotion_and_understanding()
-    # show_dataset_distribution(dataset=ddos_data)
-    data_preprocessing(dataset=ddos_data)
-    # exploratory_data_analysis(data_set=ddos_data)
-    binary_features, numerical_features, categorical_features = get_features(data_set=ddos_data)
-
-    ddos_data = normalize_data(dataset=ddos_data, numerical_features=numerical_features)
-
-
-    exit()
-
-    # examine binary columns
-
-    """# Split train, test data:"""
-
-    y = ddos_data['label_encoded']
-    X = ddos_data.drop(columns=['label_encoded', 'Label_Benign', 'Label_DDoS-ACK', 'Label_DDoS-PSH-ACK'])
-
-    X.columns
-
-    X.head()
-
+def train_model(dataset):
+    y = dataset['label_encoded']
+    X = dataset.drop(columns=['label_encoded', 'Label_Benign', 'Label_DDoS-ACK', 'Label_DDoS-PSH-ACK'])
     X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
-
     X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=0.125, random_state=42)
-
-    len(X_train.columns)
 
     """The distribution of classes between the two train and test sets is even.
 
@@ -329,9 +302,25 @@ def main():
         class_weight=None,
         sample_weight=None,
         initial_epoch=0)
+    return model, history_log
+
+
+def main():
+    """Problem definition
+    Distributed Denial of Service: it's a cybersecurity menace which disrupts online services by sending an overwhelming amount of network traffic. These attacks are manually started with botnets that flood the target network. These attacks could have either of the following characteristics:
+     The botnet sends a massive number of requests to the hosting servers.
+     The botnet sends a high volume of random data packets, thus incapacitating the network.
+     our goal is to detect the attack with certainty > 0.9"""
+    ddos_data = data_acqusiotion_and_understanding()
+    # show_dataset_distribution(dataset=ddos_data)
+    data_preprocessing(dataset=ddos_data)
+    # exploratory_data_analysis(data_set=ddos_data)
+    binary_features, numerical_features, categorical_features = get_features(data_set=ddos_data)
+    ddos_data = normalize_data(dataset=ddos_data, numerical_features=numerical_features)
+    model, history_log = train_model(dataset=ddos_data)
+    exit()
 
     """## Plotting the loss by epochs:"""
-
     loss = history_log.history['loss']
     val_loss = history_log.history['val_loss']
     epochs = range(1, len(loss) + 1)
@@ -342,6 +331,7 @@ def main():
     plt.ylabel('Loss')
     plt.legend()
     plt.show()
+    plt.clf()
 
     """## Plotting the accuracy by epochs:"""
 
@@ -354,6 +344,7 @@ def main():
     plt.ylabel('Accuracy Score')
     plt.legend()
     plt.show()
+    plt.clf()
 
     """## Model evaluation for test set:"""
 
