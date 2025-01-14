@@ -71,7 +71,7 @@ def data_preprocessing(dataset):
         data_set['frame.time'] = data_set['frame.time'].dt.tz_localize('UTC').dt.tz_convert('US/Mountain')
 
     print(f'*Preprocess dataset.')
-    dataset.drop('ip.dst', axis=1, inplace=True)  # destination is always the same.
+    # dataset.drop('ip.dst', axis=1, inplace=True)  # destination is always the same.
     # dataset['tcp.srcport'].value_counts()  # """These IP addresses represent the botnets utilized for the DDoS attacks. The consistent count of occurrences (10800) for each IP address implies an even distribution of DDoS attack traffic across various botnets."""
     constant_features = dataset.columns[dataset.nunique() == 1]
     dataset.drop(columns=constant_features, inplace=True)  # removing the features that are constant.
@@ -268,7 +268,7 @@ def normalize_data(dataset, numerical_features):
     return dataset
 
 
-def train_model(dataset, main_test_size: float = 0.1, secondary_test_size: float = 0.125, epochs: int = 20):
+def train_model(dataset, main_test_size: float = 0.1, secondary_test_size: float = 0.125, epochs: int = 20, learning_rate=1e-3):
     print(f'*Training Model.')
     y = dataset['label_encoded']
     X = dataset.drop(columns=['label_encoded', 'Label_Benign', 'Label_DDoS-ACK', 'Label_DDoS-PSH-ACK'])
@@ -285,9 +285,8 @@ def train_model(dataset, main_test_size: float = 0.1, secondary_test_size: float
         # Dense(units=2,activation='relu',name='Hidden_layer_2',kernel_regularizer=L2(0.3)),
         Dense(units=1, activation='sigmoid', name='Output_layer', kernel_regularizer=L2(0.1))
     ])
-    model.compile(optimizer=Adam(learning_rate=1e-3), loss=BinaryCrossentropy(), metrics=['accuracy'])
+    model.compile(optimizer=Adam(learning_rate=learning_rate), loss=BinaryCrossentropy(), metrics=['accuracy'])
     model.summary()
-
     print(f'*Fitting the model.')
     history_log = model.fit(
         X_train,
@@ -339,22 +338,26 @@ def main():
      our goal is to detect the attack with certainty > 0.6"""
 
     ddos_data = data_acquisition_and_understanding(data_file_path=Paths.dataset_file)
-    show_dataset_distribution(dataset=ddos_data)
+    # show_dataset_distribution(dataset=ddos_data)
     data_preprocessing(dataset=ddos_data)
-    exploratory_data_analysis(data_set=ddos_data)
+    # exploratory_data_analysis(data_set=ddos_data)
     binary_features, numerical_features, categorical_features = get_features(data_set=ddos_data)
     ddos_data = normalize_data(dataset=ddos_data, numerical_features=numerical_features)
+    original = copy.deepcopy(ddos_data)
+
+    # ddos_data.drop('frame.len', axis=1, inplace=True)  # destination is always the same.
 
     # pre maximizing
-    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.1, secondary_test_size=0.125, epochs=10)
-    plot_model_results(history_log=history_log)
+    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.5, secondary_test_size=0.125, epochs=3, learning_rate=0.001)
+    # plot_model_results(history_log=history_log)
     loss_pre, accuracy_pre = model.evaluate(X_test, y_test)
     print('Accuracy of Deep neural Network on unseen data : %.2f' % (accuracy_pre * 100))
 
     # post_maximizing training and learning time and computing.
-    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.7, secondary_test_size=0.125, epochs=100)
-    plot_model_results(history_log=history_log)
+    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(original), main_test_size=0.1, secondary_test_size=0.125, epochs=3, learning_rate=0.1)
+    # plot_model_results(history_log=history_log)
     loss_post, accuracy_post = model.evaluate(X_test, y_test)
+
     print('Accuracy of Deep neural Network on unseen data : %.2f' % (accuracy_post * 100))
 
     print(f'model improvement: {accuracy_post-accuracy_pre}')
