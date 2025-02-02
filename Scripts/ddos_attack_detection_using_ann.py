@@ -140,14 +140,14 @@ def exploratory_data_analysis(data_set):
 
     def show_avg_packets_over_time(data_set):
         print(f'**Show dataset AVG packets over time.')
-        benign = data_set[data_set['Label'] == "Bengin"].Packets
+        benign = data_set[data_set['Label'] == "Benign"].Packets
         ddos_ack = data_set[data_set['Label'] == "DDoS-ACK"].Packets
         ddos_psh_ack = data_set[data_set['Label'] == "DDoS-PSH-ACK"].Packets
-        plt.xlabel("Numbre of Packets")
+        plt.xlabel("Number of Packets")
         plt.ylabel("")
-        plt.title("Numbre of packets for label ddos Visualiztion")
+        plt.title("Number of packets for label ddos Visualization")
         plt.hist([benign, ddos_ack, ddos_psh_ack], rwidth=0.95, color=['green', 'blue', 'red'],
-                 label=['Bengin', 'ddos_ack', 'ddos_psh_ack'])
+                 label=['Benign', 'ddos_ack', 'ddos_psh_ack'])
         plt.legend()
 
         # Filter non-benign and benign data
@@ -227,7 +227,7 @@ def exploratory_data_analysis(data_set):
     # show_avg_packets_over_time(data_set=data_set)
     # show_packets_over_time(data_set=data_set)
     # show_frequency_labels_over_time(data_set=data_set)
-    show_corelation_analisys(data_set=data_set)
+    # show_corelation_analisys(data_set=data_set)
 
 
 def normalize_data(dataset, numerical_features):
@@ -268,7 +268,7 @@ def normalize_data(dataset, numerical_features):
     return dataset
 
 
-def train_model(dataset, main_test_size: float = 0.1, secondary_test_size: float = 0.125, epochs: int = 20):
+def train_model(dataset, main_test_size: float = 0.1, secondary_test_size: float = 0.125, epochs: int = 20, learning_rate=1e-3):
     print(f'*Training Model.')
     y = dataset['label_encoded']
     X = dataset.drop(columns=['label_encoded', 'Label_Benign', 'Label_DDoS-ACK', 'Label_DDoS-PSH-ACK'])
@@ -285,7 +285,7 @@ def train_model(dataset, main_test_size: float = 0.1, secondary_test_size: float
         # Dense(units=2,activation='relu',name='Hidden_layer_2',kernel_regularizer=L2(0.3)),
         Dense(units=1, activation='sigmoid', name='Output_layer', kernel_regularizer=L2(0.1))
     ])
-    model.compile(optimizer=Adam(learning_rate=1e-3), loss=BinaryCrossentropy(), metrics=['accuracy'])
+    model.compile(optimizer=Adam(learning_rate=learning_rate), loss=BinaryCrossentropy(), metrics=['accuracy'])
     model.summary()
 
     print(f'*Fitting the model.')
@@ -339,20 +339,20 @@ def main():
      our goal is to detect the attack with certainty > 0.6"""
 
     ddos_data = data_acquisition_and_understanding(data_file_path=Paths.dataset_file)
-    show_dataset_distribution(dataset=ddos_data)
+    # show_dataset_distribution(dataset=ddos_data)
     data_preprocessing(dataset=ddos_data)
     exploratory_data_analysis(data_set=ddos_data)
     binary_features, numerical_features, categorical_features = get_features(data_set=ddos_data)
     ddos_data = normalize_data(dataset=ddos_data, numerical_features=numerical_features)
 
     # pre maximizing
-    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.1, secondary_test_size=0.125, epochs=10)
+    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.5, secondary_test_size=0.125, epochs=5, learning_rate=1e-4)
     plot_model_results(history_log=history_log)
     loss_pre, accuracy_pre = model.evaluate(X_test, y_test)
     print('Accuracy of Deep neural Network on unseen data : %.2f' % (accuracy_pre * 100))
 
     # post_maximizing training and learning time and computing.
-    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.7, secondary_test_size=0.125, epochs=100)
+    X_test, y_test, model, history_log = train_model(dataset=copy.deepcopy(ddos_data), main_test_size=0.1, secondary_test_size=0.125, epochs=5, learning_rate=1e-3)
     plot_model_results(history_log=history_log)
     loss_post, accuracy_post = model.evaluate(X_test, y_test)
     print('Accuracy of Deep neural Network on unseen data : %.2f' % (accuracy_post * 100))
